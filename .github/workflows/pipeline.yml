@@ -11,16 +11,11 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout do código
-        uses: actions/checkout@v4
-
-      - name: Configurar Node.js
-        uses: actions/setup-node@v4
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: '20'
-
-      - name: Instalar dependências
-        run: npm install
+      - run: npm install
 
   lint:
     needs: build
@@ -31,8 +26,7 @@ jobs:
         with:
           node-version: '20'
       - run: npm install
-      - name: Rodar ESLint
-        run: npm run lint
+      - run: npm run lint
 
   test:
     needs: lint
@@ -43,32 +37,27 @@ jobs:
         with:
           node-version: '20'
       - run: npm install
-      - name: Rodar testes com Jest
-        run: npm test
+      - run: npm test
 
   # ACTION 1 (Marketplace): aquasecurity/trivy-action
-  # Etapa: Security — escaneia o código em busca de vulnerabilidades conhecidas
   security:
     needs: test
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Escanear vulnerabilidades com Trivy
-        uses: aquasecurity/trivy-action@0.24.0
+      - uses: aquasecurity/trivy-action@v0.36.0
         with:
           scan-type: 'fs'
           scan-ref: '.'
           severity: 'CRITICAL,HIGH'
 
   # ACTION 2 (Marketplace): actions/upload-artifact
-  # Etapa: Package/Artefatos — empacota os arquivos da aplicação e guarda como artefato do workflow
   package:
     needs: security
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Gerar artefato do projeto
-        uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v4
         with:
           name: gerador-de-frases-build
           path: |
@@ -76,15 +65,31 @@ jobs:
             style.css
             script.js
 
-  # ACTION 3 (Marketplace): peaceiris/actions-gh-pages
-  # Etapa: Deploy — publica a aplicação estática no GitHub Pages
-  deploy:
+  deploy-dev:
     needs: package
     runs-on: ubuntu-latest
     steps:
+      - run: echo "Publicando no ambiente de Dev..."
+
+  smoke-test:
+    needs: deploy-dev
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "Rodando teste rápido de sanidade no ambiente de Dev..."
+
+  deploy-homolog:
+    needs: smoke-test
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "Publicando no ambiente de Homologação..."
+
+  # ACTION 3 (Marketplace): peaceiris/actions-gh-pages
+  deploy-prod:
+    needs: deploy-homolog
+    runs-on: ubuntu-latest
+    steps:
       - uses: actions/checkout@v4
-      - name: Deploy no GitHub Pages
-        uses: peaceiris/actions-gh-pages@v4
+      - uses: peaceiris/actions-gh-pages@v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: .
